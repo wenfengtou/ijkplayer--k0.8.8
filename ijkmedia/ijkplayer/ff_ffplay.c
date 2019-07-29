@@ -1260,18 +1260,21 @@ static double compute_target_delay(FFPlayer *ffp, double delay, VideoState *is)
         /* skip or repeat frame. We take into account the
            delay to compute the threshold. I still don't know
            if it is the best guess */
+
         sync_threshold = FFMAX(AV_SYNC_THRESHOLD_MIN, FFMIN(AV_SYNC_THRESHOLD_MAX, delay));
+         av_log(NULL, AV_LOG_FATAL,
+               "synctime compute_target_delay get_clock(&is->vidclk) is %lf,get_master_clock(is) is %lf ,diff is %lf, sync_threshold is %lf", get_clock(&is->vidclk), get_master_clock(is),diff,sync_threshold);
         /* -- by bbcallen: replace is->max_frame_duration with AV_NOSYNC_THRESHOLD */
         if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD) {
             if (diff <= -sync_threshold)
                 delay = FFMAX(0, delay + diff);
-            else if (diff >= sync_threshold && delay > AV_SYNC_FRAMEDUP_THRESHOLD)
-                delay = delay + diff;
+            else if (diff >= sync_threshold && delay > AV_SYNC_FRAMEDUP_THRESHOLD) //视频跑得快了
+                delay = delay + diff;  //那就多睡一会时间
             else if (diff >= sync_threshold)
                 delay = 2 * delay;
         }
     }
-
+    //0.04是个阈值，没超过他，就别管他了
     if (ffp) {
         ffp->stat.avdelay = delay;
         ffp->stat.avdiff  = diff;
@@ -1349,12 +1352,15 @@ retry:
             /* compute nominal last_duration */
             last_duration = vp_duration(is, lastvp, vp);
             delay = compute_target_delay(ffp, last_duration, is);
-
             time= av_gettime_relative()/1000000.0;
+            av_log(NULL, AV_LOG_FATAL,
+               "synctime is %lf,delay is %lf,time is %lf, is->frame_timer = %lf ", last_duration, delay, time, is->frame_timer);
             if (isnan(is->frame_timer) || time < is->frame_timer)
                 is->frame_timer = time;
-            if (time < is->frame_timer + delay) {
+            if (time < is->frame_timer + delay) {            //delay时间还没到，继续显示上一帧
                 *remaining_time = FFMIN(is->frame_timer + delay - time, *remaining_time);
+                av_log(NULL, AV_LOG_FATAL,
+               "synctime is->frame_timer + delay - time is %lf, remaining_time is %lf ", is->frame_timer + delay - time,*remaining_time);
                 goto display;
             }
 
